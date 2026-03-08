@@ -26,7 +26,7 @@ if (!baseUrl || !token) {
   process.exit(1);
 }
 
-const proxy = createClient({ baseUrl, token });
+const proxy = createClient({ baseUrl, token, timeout: 120000 });
 
 const WW2_BRANCHES = [
   { id: "european", name: "European Theater", color: "#4A90D9" },
