@@ -7,6 +7,9 @@ interface ChatResponse {
   addedEvents: TimelineEvent[];
 }
 
+const CHAT_PROVIDER = "openai" as const;
+const CHAT_MODEL = "gpt-4o";
+
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -174,10 +177,10 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
 
   const stream: ReadableStream = await withRetry(() =>
     (proxy.ai as any).chatStream({
-      provider: "anthropic",
-      model: "claude-sonnet-4-5-20250514",
-      system: systemPrompt,
+      provider: CHAT_PROVIDER,
+      model: CHAT_MODEL,
       messages: [
+        { role: "system", content: systemPrompt },
         { role: "user", content: eventContext },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: userMessage },
@@ -331,10 +334,10 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
 
   const response: any = await withRetry(() =>
     (proxy.ai as any).chat({
-      provider: "anthropic",
-      model: "claude-sonnet-4-5-20250514",
-      system: systemPrompt,
+      provider: CHAT_PROVIDER,
+      model: CHAT_MODEL,
       messages: [
+        { role: "system", content: systemPrompt },
         { role: "user", content: eventContext },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: userMessage },
@@ -460,10 +463,10 @@ async function autoImproveEvent(
 
     const response: any = await withRetry(() =>
       (proxy as any).ai.chat({
-        provider: "anthropic",
-        model: "claude-sonnet-4-5-20250514",
-        system: improveSystemPrompt,
+        provider: CHAT_PROVIDER,
+        model: CHAT_MODEL,
         messages: [
+          { role: "system", content: improveSystemPrompt },
           {
             role: "user",
             content: `Write about: ${event.title} (${event.date})
@@ -477,10 +480,10 @@ ${chatResponse.slice(0, 800)}
 
 Available sources:
 ${allSourceContext}`,
-        },
-      ],
-      maxTokens: 1024,
-    })
+          },
+        ],
+        maxTokens: 1024,
+      })
     );
 
     const improvedContent = response.content;

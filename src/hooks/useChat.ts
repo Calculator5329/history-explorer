@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { sendChatMessageStream } from "../services/chat-service.ts";
+import { sendChatMessage, sendChatMessageStream } from "../services/chat-service.ts";
 import type { TimelineEvent, ChatMessage, Source } from "../types/index.ts";
 
 export function useChat(
@@ -24,17 +24,34 @@ export function useChat(
       setStreamingSources([]);
 
       try {
-        const { message, addedEvents } = await sendChatMessageStream(
-          topicId,
-          event,
-          messages,
-          userMessage,
-          (partial, sources) => {
-            setStreamingText(partial);
-            setStreamingSources(sources);
-          },
-          allEvents
-        );
+        let result;
+        try {
+          result = await sendChatMessageStream(
+            topicId,
+            event,
+            messages,
+            userMessage,
+            (partial, sources) => {
+              setStreamingText(partial);
+              setStreamingSources(sources);
+            },
+            allEvents
+          );
+        } catch (err: any) {
+          const status = err?.status ?? err?.response?.status;
+          if (status !== 401) throw err;
+
+          // Some Anthropic requests succeed non-streaming while the streaming path returns 401.
+          result = await sendChatMessage(
+            topicId,
+            event,
+            messages,
+            userMessage,
+            allEvents
+          );
+        }
+
+        const { message, addedEvents } = result;
         setStreamingText(null);
         setStreamingSources([]);
         setMessages((prev) => [...prev, message]);
