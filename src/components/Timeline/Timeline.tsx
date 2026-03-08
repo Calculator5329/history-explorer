@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
-import { renderTimeline } from "./timeline-renderer.ts";
+import { useRef, useEffect } from "react";
 import type { TimelineEvent, Branch } from "../../types/index.ts";
+import { renderTimeline } from "./timeline-renderer.ts";
+import MiniMap from "./MiniMap.tsx";
 import "./Timeline.css";
 
 interface TimelineProps {
@@ -40,5 +41,10 @@ export default function Timeline({ events, branches, onEventClick }: TimelinePro
     };
   }, [events, branches, onEventClick]);
 
-  return <div ref={containerRef} className="timeline-container" />;
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div ref={containerRef} className="timeline-container" />
+      <MiniMap events={events} branches={branches} />
+    </div>
+  );
 }
