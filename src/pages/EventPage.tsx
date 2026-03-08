@@ -1,23 +1,60 @@
 import { useParams, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import EventImage from "../components/EventDetail/EventImage.tsx";
 import EventContent from "../components/EventDetail/EventContent.tsx";
 import EventSources from "../components/EventDetail/EventSources.tsx";
 import RelatedEvents from "../components/EventDetail/RelatedEvents.tsx";
 import { useEvent } from "../hooks/useEvent.ts";
 import { useTimeline } from "../hooks/useTimeline.ts";
+import { enrichEvent, generateEventContent } from "../services/event-enricher.ts";
 import { sampleEvents, sampleTopic } from "../data/ww2-sample.ts";
 import "./EventPage.css";
 
 export default function EventPage() {
   const { topicId, eventId } = useParams();
-  const { event: firestoreEvent, loading: eventLoading } = useEvent(topicId, eventId);
+  const { event: firestoreEvent, loading: eventLoading, setEvent } = useEvent(topicId, eventId);
   const { topic, events: allEvents } = useTimeline(topicId);
+  const [contentLoading, setContentLoading] = useState(false);
 
   // Fall back to sample data
   const event = firestoreEvent || sampleEvents.find((e) => e.id === eventId);
   const activeTopic = topic || sampleTopic;
   const activeEvents = allEvents.length > 0 ? allEvents : sampleEvents;
   const branch = activeTopic.branches.find((b) => b.id === event?.branch);
+
+  // Trigger enrichment on mount if needed
+  useEffect(() => {
+    if (!event || !topicId || !firestoreEvent) return;
+
+    let cancelled = false;
+
+    async function doEnrich() {
+      if (!event || !topicId) return;
+
+      // Step 1: Enrich (Wikipedia + sources) if not already done
+      let enriched = event;
+      if (!event.enriched) {
+        enriched = await enrichEvent(topicId, event);
+        if (cancelled) return;
+        setEvent(enriched);
+      }
+
+      // Step 2: Generate content if not already done
+      if (!enriched.content) {
+        setContentLoading(true);
+        const content = await generateEventContent(topicId, enriched);
+        if (cancelled) return;
+        setEvent({ ...enriched, content });
+        setContentLoading(false);
+      }
+    }
+
+    doEnrich();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [event?.id, event?.enriched, event?.content, topicId, firestoreEvent, setEvent]);
 
   if (eventLoading) {
     return (
@@ -62,7 +99,12 @@ export default function EventPage() {
         </div>
 
         <EventImage url={event.wikipediaImageUrl} alt={event.title} />
-        <EventContent content={event.content} summary={event.summary} sources={event.sources} />
+        <EventContent
+          content={event.content}
+          summary={event.summary}
+          sources={event.sources}
+          loading={contentLoading}
+        />
         <RelatedEvents connections={event.connections} allEvents={activeEvents} />
         <EventSources sources={event.sources} />
       </main>
