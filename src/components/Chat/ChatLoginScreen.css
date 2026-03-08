@@ -1,0 +1,73 @@
+.chat-login {
+  border-top: 1px solid #1a1a2a;
+  padding-top: 24px;
+  margin-top: 32px;
+}
+
+.chat-login-title {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #C9A84C;
+  margin-bottom: 8px;
+}
+
+.chat-login-desc {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 16px;
+}
+
+.chat-login-form {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-login-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: #0d0d12;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+  color: #d4cfc4;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.chat-login-input:focus {
+  border-color: #C9A84C;
+}
+
+.chat-login-input::placeholder {
+  color: #444;
+}
+
+.chat-login-submit {
+  padding: 10px 20px;
+  background: #C9A84C;
+  border: none;
+  border-radius: 4px;
+  color: #0d0d12;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.chat-login-submit:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.chat-login-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-login-error {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #c44;
+}

@@ -1,5 +1,5 @@
 import { proxy } from "../proxy.ts";
-import type { TimelineEvent, ChatMessage, Source } from "../types/index.ts";
+import type { TimelineEvent, ChatMessage } from "../types/index.ts";
 import { enrichEvent } from "./event-enricher.ts";
 
 interface ChatResponse {
