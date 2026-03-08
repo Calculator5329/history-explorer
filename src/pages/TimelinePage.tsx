@@ -254,49 +254,51 @@ export default function TimelinePage() {
   return (
     <div className="timeline-page">
       <header className="timeline-header-bar">
-        <div className="timeline-topic-picker">
-          <label htmlFor="topic-select">Timeline</label>
-          <select
-            id="topic-select"
-            value={topicId}
-            onChange={(e) => handleTopicChange(e.target.value)}
-          >
-            {topicOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!IS_PRODUCTION && (
+          <div className="timeline-topic-picker">
+            <label htmlFor="topic-select">Timeline</label>
+            <select
+              id="topic-select"
+              value={topicId}
+              onChange={(e) => handleTopicChange(e.target.value)}
+            >
+              {topicOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="timeline-header-actions">
-          <button
-            type="button"
-            className="timeline-btn"
-            onClick={handleEnrichTimeline}
-            disabled={IS_PRODUCTION || enrichBusy}
-            title={IS_PRODUCTION ? "Disabled in production" : undefined}
-          >
-            {enrichBusy ? "Enriching..." : "Enrich Timeline"}
-          </button>
-          <button
-            type="button"
-            className="timeline-btn"
-            onClick={handleOpenExpand}
-            disabled={IS_PRODUCTION || expandBusy || expandSaving}
-            title={IS_PRODUCTION ? "Disabled in production" : undefined}
-          >
-            {expandBusy ? "Generating..." : "Expand Timeline"}
-          </button>
-          <button
-            type="button"
-            className="timeline-btn timeline-btn-primary"
-            onClick={openWizard}
-            disabled={IS_PRODUCTION}
-            title={IS_PRODUCTION ? "Disabled in production" : undefined}
-          >
-            Start Another Historical Event
-          </button>
+          {!IS_PRODUCTION && (
+            <>
+              <button
+                type="button"
+                className="timeline-btn"
+                onClick={handleEnrichTimeline}
+                disabled={enrichBusy}
+              >
+                {enrichBusy ? "Enriching..." : "Enrich Timeline"}
+              </button>
+              <button
+                type="button"
+                className="timeline-btn"
+                onClick={handleOpenExpand}
+                disabled={expandBusy || expandSaving}
+              >
+                {expandBusy ? "Generating..." : "Expand Timeline"}
+              </button>
+              <button
+                type="button"
+                className="timeline-btn timeline-btn-primary"
+                onClick={openWizard}
+              >
+                Start Another Historical Event
+              </button>
+            </>
+          )}
           <Link to={`/stats?topic=${topicId}`} className="timeline-stats-link">Stats</Link>
         </div>
       </header>
