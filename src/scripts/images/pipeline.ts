@@ -64,7 +64,7 @@ async function processEvent(
     } else {
       console.warn(`      Failed to download/upload: ${candidate.url.slice(0, 80)}`);
     }
-    await sleep(300);
+    await sleep(RATE_LIMIT_MS);
   }
 
   if (images.length === 0) {
@@ -135,6 +135,8 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
     else failed++;
 
     console.log();
+    // Inter-event cooldown to avoid rate limiting from image sources
+    await sleep(2_000);
   }
 
   console.log("  ==============");

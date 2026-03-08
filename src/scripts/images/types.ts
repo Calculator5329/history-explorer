@@ -2,6 +2,7 @@ import type { TimelineEvent } from "../../types/index.ts";
 
 export interface CandidateImage {
   url: string;
+  fallbackUrl?: string;
   title: string;
   creator?: string;
   source: string;

@@ -50,6 +50,7 @@ export default function TimelinePage() {
   const [expandBusy, setExpandBusy] = useState(false);
   const [expandError, setExpandError] = useState<string | null>(null);
   const [expandSaving, setExpandSaving] = useState(false);
+  const [enrichBusy, setEnrichBusy] = useState(false);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
@@ -69,6 +70,30 @@ export default function TimelinePage() {
   const handleTopicChange = (nextTopicId: string) => {
     if (!nextTopicId || nextTopicId === topicId) return;
     navigate(`/topic/${nextTopicId}`);
+  };
+
+  const handleEnrichTimeline = async () => {
+    if (IS_PRODUCTION) {
+      setExpandError("Timeline enrichment is disabled in production.");
+      return;
+    }
+
+    const unenriched = activeEvents.filter((e) => !e.enriched);
+    if (unenriched.length === 0) {
+      setExpandError("All events are already enriched.");
+      return;
+    }
+
+    setExpandError(null);
+    setEnrichBusy(true);
+    try {
+      runDeepenPass(topicId, activeEvents, unenriched);
+      setExpandError(`Enrichment started for ${unenriched.length} event(s). Refresh in a moment to see results.`);
+    } catch (err) {
+      setExpandError(err instanceof Error ? err.message : "Failed to start enrichment");
+    } finally {
+      setEnrichBusy(false);
+    }
   };
 
   const handleOpenExpand = async () => {
@@ -248,6 +273,15 @@ export default function TimelinePage() {
           <button
             type="button"
             className="timeline-btn"
+            onClick={handleEnrichTimeline}
+            disabled={IS_PRODUCTION || enrichBusy}
+            title={IS_PRODUCTION ? "Disabled in production" : undefined}
+          >
+            {enrichBusy ? "Enriching..." : "Enrich Timeline"}
+          </button>
+          <button
+            type="button"
+            className="timeline-btn"
             onClick={handleOpenExpand}
             disabled={IS_PRODUCTION || expandBusy || expandSaving}
             title={IS_PRODUCTION ? "Disabled in production" : undefined}
@@ -289,7 +323,7 @@ export default function TimelinePage() {
                     <strong>{event.title}</strong>
                     <span>{event.date}</span>
                   </div>
-                  <div className="timeline-preview-meta">{event.branch} • {event.importance}</div>
+                  <div className="timeline-preview-meta">{event.branch} ï¿½ {event.importance}</div>
                   <p>{event.summary}</p>
                 </div>
               ))}
@@ -363,7 +397,7 @@ export default function TimelinePage() {
                       <strong>{event.title}</strong>
                       <span>{event.date}</span>
                     </div>
-                    <div className="timeline-preview-meta">{event.branch} • {event.importance}</div>
+                    <div className="timeline-preview-meta">{event.branch} ï¿½ {event.importance}</div>
                     <p>{event.summary}</p>
                   </div>
                 ))}

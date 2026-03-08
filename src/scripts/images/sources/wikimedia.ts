@@ -60,7 +60,7 @@ async function searchFiles(query: string, limit = 15): Promise<string[]> {
 }
 
 interface WikiImageInfo {
-  title: string; url: string; descriptionUrl: string;
+  title: string; url: string; originalUrl: string; descriptionUrl: string;
   width: number; height: number; mime: string;
   description: string; license: string;
 }
@@ -68,7 +68,8 @@ interface WikiImageInfo {
 async function fetchImageInfo(fileTitles: string[]): Promise<WikiImageInfo[]> {
   if (fileTitles.length === 0) return [];
   const titles = fileTitles.join("|");
-  const url = `${WIKI_API}?action=query&titles=${encodeURIComponent(titles)}&prop=imageinfo&iiprop=url|extmetadata|size|mime&iiurlwidth=800&format=json&origin=*`;
+  // Use 960px — one of Wikimedia's allowed thumbnail steps (20,40,60,120,250,330,500,960,1280,1920,3840)
+  const url = `${WIKI_API}?action=query&titles=${encodeURIComponent(titles)}&prop=imageinfo&iiprop=url|extmetadata|size|mime&iiurlwidth=960&format=json&origin=*`;
   try {
     const resp = await fetch(url);
     const data = await resp.json();
@@ -79,9 +80,12 @@ async function fetchImageInfo(fileTitles: string[]): Promise<WikiImageInfo[]> {
       if (!info) continue;
       const meta = info.extmetadata || {};
       results.push({
-        title: page.title || "", url: info.thumburl || info.url,
+        title: page.title || "",
+        url: info.thumburl || info.url,
+        originalUrl: info.url || "",
         descriptionUrl: info.descriptionurl || "",
-        width: info.width || 0, height: info.height || 0,
+        width: info.thumbwidth || info.width || 0,
+        height: info.thumbheight || info.height || 0,
         mime: info.mime || "",
         description: stripHtml(meta.ImageDescription?.value || ""),
         license: meta.LicenseShortName?.value || "Public domain",
@@ -136,6 +140,7 @@ export const wikimediaAdapter: SourceAdapter = {
       .filter((img) => validMime.includes(img.mime.toLowerCase()))
       .map((img) => ({
         url: img.url,
+        fallbackUrl: img.originalUrl && img.originalUrl !== img.url ? img.originalUrl : undefined,
         title: img.description || img.title.replace("File:", "").replace(/_/g, " ").replace(/\.\w+$/, ""),
         source: "Wikimedia Commons",
         provider: "wikimedia",
