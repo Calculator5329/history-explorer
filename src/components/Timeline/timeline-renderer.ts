@@ -126,6 +126,18 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
     .attr("fill", "#888")
     .style("font-size", "11px");
 
+  // Faint vertical grid at each year
+  const yearTicks = xScale.ticks(d3.timeYear.every(1)!);
+  yearTicks.forEach((tick) => {
+    g.append("line")
+      .attr("x1", xScale(tick))
+      .attr("x2", xScale(tick))
+      .attr("y1", MARGIN.top)
+      .attr("y2", height - MARGIN.bottom)
+      .attr("stroke", "#1a1a2a")
+      .attr("stroke-width", 1);
+  });
+
   // Draw cross-branch connections (curved bezier paths)
   events.forEach((event) => {
     event.connections.forEach((connId) => {
@@ -371,6 +383,7 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
       .attr("fill", "#d4cfc4")
       .style("font-size", "13px")
       .style("font-weight", "600")
+      .style("font-family", "'Playfair Display', Georgia, serif")
       .text(branch.name);
   });
 
