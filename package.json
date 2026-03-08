@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "preseed": "npx tsx src/scripts/preseed.ts",
-    "fetch-images": "npx tsx src/scripts/fetch-wikimedia-images.ts",
+    "fetch-images": "npx tsx src/scripts/images/cli.ts",
     "deploy": "npm run build && firebase deploy --only hosting:history-explorer"
   },
   "dependencies": {

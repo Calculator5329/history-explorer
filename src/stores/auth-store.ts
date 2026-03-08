@@ -1,9 +1,5 @@
-/**
- * Simple auth store for gating the LLM chat feature.
- * Password is hardcoded for now; can be moved to env later.
- */
-
-const CHAT_PASSWORD = import.meta.env.VITE_CHAT_PASSWORD ?? "history2024";
+const REQUIRE_CHAT_UNLOCK = import.meta.env.PROD;
+const CHAT_PASSWORD = (import.meta.env.VITE_CHAT_PASSWORD ?? "").trim();
 const STORAGE_KEY = "chat-auth";
 
 let isAuthenticated = false;
@@ -37,25 +33,52 @@ function notify(): void {
 
 let loaded = false;
 
+export function getRequiresPasswordUnlock(): boolean {
+  return REQUIRE_CHAT_UNLOCK;
+}
+
+export function isPasswordConfigured(): boolean {
+  return CHAT_PASSWORD.length > 0;
+}
+
 export function getIsAuthenticated(): boolean {
+  if (!REQUIRE_CHAT_UNLOCK) {
+    return true;
+  }
+
+  if (!isPasswordConfigured()) {
+    return false;
+  }
+
   if (typeof window !== "undefined" && !loaded) {
     loaded = true;
     isAuthenticated = loadFromStorage();
   }
+
   return isAuthenticated;
 }
 
 export function login(password: string): boolean {
+  if (!REQUIRE_CHAT_UNLOCK) {
+    return true;
+  }
+
+  if (!isPasswordConfigured()) {
+    return false;
+  }
+
   const ok = password === CHAT_PASSWORD;
   if (ok) {
     isAuthenticated = true;
     saveToStorage(true);
     notify();
   }
+
   return ok;
 }
 
 export function logout(): void {
+  if (!REQUIRE_CHAT_UNLOCK) return;
   isAuthenticated = false;
   saveToStorage(false);
   notify();

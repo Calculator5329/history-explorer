@@ -232,11 +232,11 @@
 }
 
 .citation-tooltip.above {
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 2px);
 }
 
 .citation-tooltip.below {
-  top: calc(100% + 8px);
+  top: calc(100% + 2px);
 }
 
 @keyframes tooltipFadeIn {
@@ -390,5 +390,6 @@
   font-size: 13px;
   margin-top: 2px;
 }
+
 
 

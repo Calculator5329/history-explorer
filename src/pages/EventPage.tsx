@@ -26,8 +26,17 @@ export default function EventPage() {
 
   const { messages, sending, send, streamingText, streamingSources } = useChat(topicId, event || null, activeEvents);
 
+  useEffect(() => {
+    if (event?.title) {
+      document.title = `${event.title} | ${activeTopic.name} | History Explorer`;
+      return;
+    }
+
+    document.title = `${activeTopic.name} | History Explorer`;
+  }, [event?.title, activeTopic.name]);
+
   // Trigger enrichment on mount if needed (works with both Firestore and sample data)
-  // Deduplication happens in the enricher service (pending maps) — safe with React strict mode.
+  // Deduplication happens in the enricher service (pending maps) - safe with React strict mode.
   useEffect(() => {
     // Wait for Firestore to finish loading before deciding to enrich
     if (eventLoading || !event || !topicId) return;
@@ -141,5 +150,3 @@ export default function EventPage() {
     </div>
   );
 }
-
-

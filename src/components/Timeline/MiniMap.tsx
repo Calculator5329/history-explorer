@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import worldData from "world-atlas/countries-110m.json";
@@ -10,6 +10,8 @@ interface MiniMapProps {
   events: TimelineEvent[];
   branches: Branch[];
   onRegionHover?: (region: Region | null) => void;
+  variant?: "embedded" | "full";
+  onActivateMapTab?: () => void;
 }
 
 // Map ISO 3166-1 numeric country codes to WW2 theater regions
@@ -88,11 +90,11 @@ const COUNTRY_TO_REGION: Record<string, Region> = {
   "096": "southeast_asia", // Brunei
 
   // Pacific
-  "036": "pacific",  // Australia
-  "554": "pacific",  // New Zealand
-  "598": "pacific",  // Papua New Guinea
-  "242": "pacific",  // Fiji
-  "090": "pacific",  // Solomon Islands
+  "036": "pacific", // Australia
+  "554": "pacific", // New Zealand
+  "598": "pacific", // Papua New Guinea
+  "242": "pacific", // Fiji
+  "090": "pacific", // Solomon Islands
 };
 
 // Map geographic regions to their WW2 theater branch
@@ -121,9 +123,17 @@ const REGION_CENTERS: Record<Region, [number, number]> = {
   pacific: [160, -15],
 };
 
-export default function MiniMap({ events, branches, onRegionHover }: MiniMapProps) {
+export default function MiniMap({
+  events,
+  branches,
+  onRegionHover,
+  variant = "embedded",
+  onActivateMapTab,
+}: MiniMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [expanded, setExpanded] = useState(false);
+  const isFull = variant === "full";
+  const width = isFull ? 1200 : 360;
+  const height = isFull ? 640 : 180;
 
   // Build branch color map: branch id -> color
   const branchColors = useMemo(() => {
@@ -141,7 +151,9 @@ export default function MiniMap({ events, branches, onRegionHover }: MiniMapProp
   // Determine which regions have events
   const activeRegions = useMemo(() => {
     const regions = new Set<Region>();
-    events.forEach((e) => { if (e.region) regions.add(e.region); });
+    events.forEach((e) => {
+      if (e.region) regions.add(e.region);
+    });
     return regions;
   }, [events]);
 
@@ -156,22 +168,17 @@ export default function MiniMap({ events, branches, onRegionHover }: MiniMapProp
     const svg = svgRef.current;
     if (!svg) return;
 
-    const width = 360;
-    const height = 180;
-
     d3.select(svg).selectAll("*").remove();
 
-    const projection = d3.geoNaturalEarth1()
-      .scale(65)
-      .translate([width / 2, height / 2 + 10]);
+    const projection = d3
+      .geoNaturalEarth1()
+      .scale(isFull ? 220 : 65)
+      .translate([width / 2, height / 2 + (isFull ? 26 : 10)]);
 
     const path = d3.geoPath(projection);
 
     const world = worldData as unknown as Topology;
-    const countries = topojson.feature(
-      world,
-      world.objects.countries as any
-    ) as any;
+    const countries = topojson.feature(world, world.objects.countries as any) as any;
 
     const g = d3.select(svg).append("g");
 
@@ -182,7 +189,7 @@ export default function MiniMap({ events, branches, onRegionHover }: MiniMapProp
       .attr("d", path as any)
       .attr("fill", "none")
       .attr("stroke", "#1a1a2e")
-      .attr("stroke-width", 0.3);
+      .attr("stroke-width", isFull ? 0.6 : 0.3);
 
     // Countries colored by theater
     g.selectAll("path.country")
@@ -200,7 +207,7 @@ export default function MiniMap({ events, branches, onRegionHover }: MiniMapProp
       .attr("fill-opacity", (d: any) => {
         const region = COUNTRY_TO_REGION[d.id];
         if (!region || !activeRegions.has(region)) return 0.5;
-        return 0.45;
+        return isFull ? 0.55 : 0.45;
       })
       .attr("stroke", (d: any) => {
         const region = COUNTRY_TO_REGION[d.id];
@@ -209,7 +216,8 @@ export default function MiniMap({ events, branches, onRegionHover }: MiniMapProp
       })
       .attr("stroke-width", (d: any) => {
         const region = COUNTRY_TO_REGION[d.id];
-        return region && activeRegions.has(region) ? 0.5 : 0.3;
+        if (region && activeRegions.has(region)) return isFull ? 1 : 0.5;
+        return isFull ? 0.6 : 0.3;
       })
       .style("cursor", (d: any) => {
         const region = COUNTRY_TO_REGION[d.id];
@@ -224,50 +232,67 @@ export default function MiniMap({ events, branches, onRegionHover }: MiniMapProp
       });
 
     // Event dots
-    events.filter(e => e.region).forEach((event, i) => {
-      const center = REGION_CENTERS[event.region!];
-      if (!center) return;
-      const projected = projection(center);
-      if (!projected) return;
-      const color = branchColors.get(event.branch) || "#fff";
-      const ox = ((i * 7) % 15) - 7;
-      const oy = ((i * 5) % 11) - 5;
-      g.append("circle")
-        .attr("cx", projected[0] + ox)
-        .attr("cy", projected[1] + oy)
-        .attr("r", event.importance === "critical" ? 2.5 : 1.5)
-        .attr("fill", color)
-        .attr("fill-opacity", 0.9)
-        .attr("stroke", "#000")
-        .attr("stroke-width", 0.3);
-    });
-  }, [events, branches, branchColors, activeRegions, onRegionHover]);
+    events
+      .filter((e) => e.region)
+      .forEach((event, i) => {
+        const center = REGION_CENTERS[event.region!];
+        if (!center) return;
+        const projected = projection(center);
+        if (!projected) return;
+        const color = branchColors.get(event.branch) || "#fff";
+        const ox = ((i * 7) % 15) - 7;
+        const oy = ((i * 5) % 11) - 5;
+        g.append("circle")
+          .attr("cx", projected[0] + ox)
+          .attr("cy", projected[1] + oy)
+          .attr("r", event.importance === "critical" ? (isFull ? 5 : 2.5) : isFull ? 3.2 : 1.5)
+          .attr("fill", color)
+          .attr("fill-opacity", 0.9)
+          .attr("stroke", "#000")
+          .attr("stroke-width", isFull ? 0.6 : 0.3);
+      });
+  }, [events, branches, branchColors, activeRegions, onRegionHover, width, height, isFull]);
 
   return (
-    <div className={`mini-map ${expanded ? "mini-map-expanded" : ""}`}>
+    <div
+      className={`mini-map mini-map--${variant}`}
+      onClick={!isFull ? onActivateMapTab : undefined}
+      role={!isFull ? "button" : undefined}
+      tabIndex={!isFull && onActivateMapTab ? 0 : -1}
+      onKeyDown={
+        !isFull && onActivateMapTab
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onActivateMapTab();
+              }
+            }
+          : undefined
+      }
+      aria-label={!isFull ? "Open map tab" : "Timeline map"}
+    >
       <div className="mini-map-header">
         <span className="mini-map-title">Theater Map</span>
-        <button
-          className="mini-map-expand-btn"
-          onClick={() => setExpanded(!expanded)}
-          title={expanded ? "Shrink map" : "Enlarge map"}
-        >
-          {expanded ? "\u2715" : "\u26F6"}
-        </button>
+        {!isFull && (
+          <button
+            className="mini-map-expand-btn"
+            onClick={(event) => {
+              event.stopPropagation();
+              onActivateMapTab?.();
+            }}
+            title="Open map tab"
+          >
+            Open
+          </button>
+        )}
       </div>
-      <svg
-        ref={svgRef}
-        viewBox="0 0 360 180"
-        preserveAspectRatio="xMidYMid meet"
-      />
+      {!isFull && <div className="mini-map-hint">Click map to open full Map tab</div>}
+      <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" />
       {legendEntries.length > 0 && (
         <div className="mini-map-legend">
           {legendEntries.map((branch) => (
             <span key={branch.id} className="mini-map-legend-item">
-              <span
-                className="mini-map-legend-dot"
-                style={{ background: branch.color }}
-              />
+              <span className="mini-map-legend-dot" style={{ background: branch.color }} />
               {branch.name}
             </span>
           ))}
@@ -276,3 +301,5 @@ export default function MiniMap({ events, branches, onRegionHover }: MiniMapProp
     </div>
   );
 }
+
+

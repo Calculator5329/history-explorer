@@ -13,9 +13,9 @@ interface ChatGateProps {
 }
 
 export default function ChatGate({ messages, sending, onSend, event, streamingText, streamingSources }: ChatGateProps) {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, requiresPasswordUnlock, passwordConfigured, login } = useAuth();
 
-  if (isAuthenticated) {
+  if (!requiresPasswordUnlock || isAuthenticated) {
     return (
       <ChatPanel
         messages={messages}
@@ -28,5 +28,5 @@ export default function ChatGate({ messages, sending, onSend, event, streamingTe
     );
   }
 
-  return <ChatLoginScreen onLogin={login} />;
+  return <ChatLoginScreen onLogin={login} passwordConfigured={passwordConfigured} />;
 }

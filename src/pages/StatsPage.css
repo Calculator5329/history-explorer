@@ -1,0 +1,136 @@
+.stats-page {
+  min-height: 100vh;
+  background: #0d0d12;
+  color: #d4cfc4;
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+
+.stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.stats-header h1 {
+  font-size: 32px;
+  margin: 0 0 6px;
+}
+
+.stats-generated {
+  color: #888;
+  font-size: 13px;
+}
+
+.stats-back-link {
+  font-size: 13px;
+  color: #8a8fa8;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.stats-back-link:hover {
+  border-bottom-color: #8a8fa8;
+}
+
+.stats-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.stats-controls label {
+  font-size: 12px;
+  color: #888;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.stats-controls select {
+  background: #121220;
+  color: #d4cfc4;
+  border: 1px solid #2a2a3a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-width: 220px;
+}
+
+.stats-warning {
+  color: #d0a96e;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.stats-card {
+  border: 1px solid #242438;
+  background: #141420;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.stats-card-label {
+  font-size: 12px;
+  color: #8f8f9e;
+  margin-bottom: 6px;
+}
+
+.stats-card-value {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.stats-breakdown {
+  border: 1px solid #242438;
+  background: #121220;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.stats-breakdown h2 {
+  font-size: 16px;
+  margin: 0 0 10px;
+  color: #c9a84c;
+}
+
+.stats-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stats-breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  border: 1px solid #232337;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #181826;
+  font-size: 13px;
+}
+
+.stats-empty,
+.stats-error,
+.stats-loading {
+  color: #999;
+  padding: 14px 0;
+}
+
+@media (max-width: 920px) {
+  .stats-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-breakdown-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

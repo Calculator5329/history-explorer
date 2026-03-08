@@ -29,6 +29,19 @@ function getHostname(url?: string): string {
   }
 }
 
+function sanitizeTooltipText(value?: string): string {
+  if (!value) return "";
+  return value
+    .replace(/<[^>]+>/g, "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export default function EventContent({ content, summary, sources, loading }: EventContentProps) {
   if (loading) {
     return (
@@ -103,7 +116,7 @@ function CitationLink({ num, source }: { num: number; source: Source }) {
   };
 
   const handleLeave = () => {
-    hideTimeout.current = setTimeout(() => setShowTooltip(false), 200);
+    hideTimeout.current = setTimeout(() => setShowTooltip(false), 350);
   };
 
   if (!href) {
@@ -127,14 +140,13 @@ function CitationLink({ num, source }: { num: number; source: Source }) {
           <div className="citation-tooltip-header">
             <span className="citation-tooltip-num">[{num}]</span>
             <a href={href} target="_blank" rel="noopener noreferrer" className="citation-tooltip-title">
-              {source.title}
+              {sanitizeTooltipText(source.title) || "Source"}
             </a>
           </div>
-          {source.snippet && <p className="citation-tooltip-snippet">{source.snippet}</p>}
+          {source.snippet && <p className="citation-tooltip-snippet">{sanitizeTooltipText(source.snippet)}</p>}
           <div className="citation-tooltip-url">{getHostname(href)}</div>
         </div>
       )}
     </span>
   );
 }
-

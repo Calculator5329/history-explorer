@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Timeline from "../components/Timeline/Timeline.tsx";
 import { useTimeline } from "../hooks/useTimeline.ts";
 import { useTopics } from "../hooks/useTopics.ts";
@@ -21,6 +21,8 @@ const DEFAULT_TOPIC_DRAFT: TopicDraft = {
   timeframe: "",
 };
 
+const IS_PRODUCTION = import.meta.env.PROD;
+
 export default function TimelinePage() {
   const navigate = useNavigate();
   const params = useParams();
@@ -39,6 +41,10 @@ export default function TimelinePage() {
     }
     return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [topics, activeTopic]);
+
+  useEffect(() => {
+    document.title = `${activeTopic.name} Timeline | History Explorer`;
+  }, [activeTopic.name]);
 
   const [expandPreview, setExpandPreview] = useState<ProposedEvent[] | null>(null);
   const [expandBusy, setExpandBusy] = useState(false);
@@ -66,6 +72,11 @@ export default function TimelinePage() {
   };
 
   const handleOpenExpand = async () => {
+    if (IS_PRODUCTION) {
+      setExpandError("Timeline expansion is disabled in production.");
+      return;
+    }
+
     setExpandError(null);
     setExpandBusy(true);
     try {
@@ -83,6 +94,12 @@ export default function TimelinePage() {
   };
 
   const handleConfirmExpand = async () => {
+    if (IS_PRODUCTION) {
+      setExpandError("Timeline expansion is disabled in production.");
+      setExpandPreview(null);
+      return;
+    }
+
     if (!expandPreview || expandPreview.length === 0) {
       setExpandPreview(null);
       return;
@@ -113,6 +130,11 @@ export default function TimelinePage() {
   };
 
   const openWizard = () => {
+    if (IS_PRODUCTION) {
+      setExpandError("Starting another historical event is disabled in production.");
+      return;
+    }
+
     setWizardOpen(true);
     setWizardStep(1);
     setWizardDraft(DEFAULT_TOPIC_DRAFT);
@@ -122,6 +144,11 @@ export default function TimelinePage() {
   };
 
   const handleWizardNext = async () => {
+    if (IS_PRODUCTION) {
+      setWizardError("Starting another historical event is disabled in production.");
+      return;
+    }
+
     setWizardError(null);
     if (wizardStep === 1) {
       if (!wizardDraft.name.trim() || !wizardDraft.timeframe.trim()) {
@@ -163,6 +190,11 @@ export default function TimelinePage() {
   };
 
   const handleWizardCreate = async () => {
+    if (IS_PRODUCTION) {
+      setWizardError("Starting another historical event is disabled in production.");
+      return;
+    }
+
     if (wizardSeedPreview.length === 0) {
       setWizardError("No seed events available to create the timeline.");
       return;
@@ -213,12 +245,25 @@ export default function TimelinePage() {
         </div>
 
         <div className="timeline-header-actions">
-          <button type="button" className="timeline-btn" onClick={handleOpenExpand} disabled={expandBusy || expandSaving}>
+          <button
+            type="button"
+            className="timeline-btn"
+            onClick={handleOpenExpand}
+            disabled={IS_PRODUCTION || expandBusy || expandSaving}
+            title={IS_PRODUCTION ? "Disabled in production" : undefined}
+          >
             {expandBusy ? "Generating..." : "Expand Timeline"}
           </button>
-          <button type="button" className="timeline-btn timeline-btn-primary" onClick={openWizard}>
+          <button
+            type="button"
+            className="timeline-btn timeline-btn-primary"
+            onClick={openWizard}
+            disabled={IS_PRODUCTION}
+            title={IS_PRODUCTION ? "Disabled in production" : undefined}
+          >
             Start Another Historical Event
           </button>
+          <Link to={`/stats?topic=${topicId}`} className="timeline-stats-link">Stats</Link>
         </div>
       </header>
 
@@ -352,5 +397,6 @@ export default function TimelinePage() {
     </div>
   );
 }
+
 
 

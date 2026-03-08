@@ -96,6 +96,42 @@ export interface BranchDraft {
   color: string;
 }
 
+
+export interface GeneratedByBreakdown {
+  preseed: number;
+  chat: number;
+  enrichment: number;
+  expansion: number;
+  seed: number;
+}
+
+export interface TopicStats {
+  topicId: string;
+  topicName: string;
+  branchCount: number;
+  eventCount: number;
+  sourceCount: number;
+  eventsWithContent: number;
+  eventsWithImages: number;
+  generatedBy: GeneratedByBreakdown;
+}
+
+export interface GlobalStats {
+  topicCount: number;
+  eventCount: number;
+  branchCount: number;
+  sourceCount: number;
+  eventsWithContent: number;
+  eventsWithImages: number;
+  generatedBy: GeneratedByBreakdown;
+}
+
+export interface StatsResponse {
+  generatedAt: string;
+  global: GlobalStats;
+  topics: TopicStats[];
+  warnings: string[];
+}
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -108,3 +144,4 @@ export interface Chat {
   messages: ChatMessage[];
   createdAt: string;
 }
+
