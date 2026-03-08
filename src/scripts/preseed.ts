@@ -69,21 +69,26 @@ async function preseed() {
     branches: WW2_BRANCHES,
   };
 
+  let topicExists = false;
   try {
     await (proxy.firestore as any).get("topics/ww2");
-    console.log("Topic already exists, patching...");
-    await (proxy.firestore as any).patch("topics/ww2", topicData);
+    topicExists = true;
   } catch {
-    console.log("Creating new topic...");
-    // Use the Firestore REST-style create — set doc at specific path
+    topicExists = false;
+  }
+
+  if (topicExists) {
+    console.log("Topic already exists, patching...");
     try {
-      await (proxy.firestore as any).create("topics", topicData);
-      console.log("Created topic (auto-ID). Note: You may need to rename it to 'ww2'.");
-    } catch (createErr) {
-      console.error("Failed to create topic:", createErr);
-      console.log("Attempting to write directly...");
-      await (proxy.firestore as any).update("topics/ww2", topicData);
+      await (proxy.firestore as any).patch("topics/ww2", topicData);
+      console.log("Topic patched successfully.");
+    } catch (patchErr) {
+      console.warn("Patch failed (non-critical, continuing):", (patchErr as Error).message);
     }
+  } else {
+    console.log("Creating new topic with ID 'ww2'...");
+    await (proxy.firestore as any).create("topics", topicData, "ww2");
+    console.log("Topic created successfully.");
   }
 
   // Step 2: Generate events via LLM
