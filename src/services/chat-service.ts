@@ -7,6 +7,23 @@ interface ChatResponse {
   addedEvents: TimelineEvent[];
 }
 
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const status = err?.status ?? err?.response?.status;
+      if (status === 429 && attempt < maxRetries) {
+        const delay = Math.min(1000 * 2 ** attempt, 8000);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Retry limit reached");
+}
+
 function buildSystemPrompt(existingEventTitles: string[]): string {
   const eventList = existingEventTitles.length > 0
     ? `\n\nEvents ALREADY on the timeline (do NOT add these again):\n${existingEventTitles.map(t => `- ${t}`).join("\n")}`
@@ -155,17 +172,19 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
   const existingTitles = (existingEvents || []).map(e => e.title);
   const systemPrompt = buildSystemPrompt(existingTitles);
 
-  const stream = await (proxy.ai as any).chatStream({
-    provider: "openai",
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: eventContext },
-      ...messages.map((m) => ({ role: m.role, content: m.content })),
-      { role: "user", content: userMessage },
-    ],
-    maxTokens: 1500,
-  });
+  const stream = await withRetry(() =>
+    (proxy.ai as any).chatStream({
+      provider: "anthropic",
+      model: "claude-sonnet-4-5-20250514",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: eventContext },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+        { role: "user", content: userMessage },
+      ],
+      maxTokens: 1500,
+    })
+  );
 
   let fullText = "";
   onChunk("", searchSources);
@@ -186,7 +205,11 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
         if (data === "[DONE]") continue;
         try {
           const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
+          // Support both OpenAI and Anthropic stream formats
+          const delta =
+            parsed.choices?.[0]?.delta?.content ??
+            parsed.delta?.text ??
+            (parsed.type === "content_block_delta" ? parsed.delta?.text : undefined);
           if (delta) {
             fullText += delta;
             onChunk(fullText, searchSources);
@@ -306,17 +329,19 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
   const existingTitles = (existingEvents || []).map(e => e.title);
   const systemPrompt = buildSystemPrompt(existingTitles);
 
-  const response = await (proxy.ai as any).chat({
-    provider: "openai",
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: eventContext },
-      ...messages.map((m) => ({ role: m.role, content: m.content })),
-      { role: "user", content: userMessage },
-    ],
-    maxTokens: 1500,
-  });
+  const response = await withRetry(() =>
+    (proxy.ai as any).chat({
+      provider: "anthropic",
+      model: "claude-sonnet-4-5-20250514",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: eventContext },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+        { role: "user", content: userMessage },
+      ],
+      maxTokens: 1500,
+    })
+  );
 
   const fullText = response.content;
 
@@ -428,17 +453,18 @@ async function autoImproveEvent(
     .join("\n");
 
   try {
-    const response: any = await (proxy as any).ai.chat({
-      provider: "openai",
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are a historian writing an engaging, detailed explanation of a historical event. Use inline citations [1], [2], etc. referencing the provided sources. Write 2-4 paragraphs. Be factual and vivid.`,
-        },
-        {
-          role: "user",
-          content: `Write about: ${event.title} (${event.date})
+    const response: any = await withRetry(() =>
+      (proxy as any).ai.chat({
+        provider: "anthropic",
+        model: "claude-sonnet-4-5-20250514",
+        messages: [
+          {
+            role: "system",
+            content: `You are a historian writing an engaging, detailed explanation of a historical event. Use inline citations [1], [2], etc. referencing the provided sources. Write 2-4 paragraphs. Be factual and vivid.`,
+          },
+          {
+            role: "user",
+            content: `Write about: ${event.title} (${event.date})
 
 Summary: ${event.summary}
 
@@ -452,7 +478,8 @@ ${allSourceContext}`,
         },
       ],
       maxTokens: 1024,
-    });
+    })
+    );
 
     const improvedContent = response.content;
 

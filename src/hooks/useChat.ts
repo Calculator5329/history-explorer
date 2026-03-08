@@ -41,13 +41,15 @@ export function useChat(
         if (addedEvents.length > 0) {
           setAddedEventIds((prev) => [...prev, ...addedEvents.map((e) => e.id)]);
         }
-      } catch (err) {
+      } catch (err: any) {
         setStreamingText(null);
         setStreamingSources([]);
-        const errorMsg: ChatMessage = {
-          role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
-        };
+        const status = err?.status ?? err?.response?.status;
+        const content =
+          status === 429
+            ? "The AI service is currently busy. Please wait a moment and try again."
+            : "Sorry, I encountered an error. Please try again.";
+        const errorMsg: ChatMessage = { role: "assistant", content };
         setMessages((prev) => [...prev, errorMsg]);
         console.error("Chat error:", err);
       } finally {
