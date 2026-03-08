@@ -1,6 +1,7 @@
 import { createClient } from "@calculator-5329/cloud-proxy";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { sampleTopic, sampleEvents } from "../data/ww2-sample.ts";
 
 // Load .env file manually (no dotenv dependency needed)
 try {
@@ -28,45 +29,17 @@ if (!baseUrl || !token) {
 
 const proxy = createClient({ baseUrl, token, timeout: 120000 });
 
-const WW2_BRANCHES = [
-  { id: "european", name: "European Theater", color: "#4A90D9" },
-  { id: "pacific", name: "Pacific Theater", color: "#E74C3C" },
-  { id: "homefront", name: "Home Front", color: "#2ECC71" },
-  { id: "diplomacy", name: "Diplomacy & Politics", color: "#F39C12" },
-];
-
-const GENERATION_PROMPT = `Generate a comprehensive World War II timeline with 50-60 key events across these branches:
-- european: European Theater (military operations in Europe and North Africa)
-- pacific: Pacific Theater (military operations in the Pacific and Asia)
-- homefront: Home Front (civilian life, manufacturing, social changes)
-- diplomacy: Diplomacy & Politics (conferences, declarations, treaties)
-
-Return ONLY a JSON array. Each event object must have:
-- title: string (concise event name)
-- date: string (ISO format YYYY-MM-DD, use best known date)
-- endDate: string or null (for events spanning multiple days)
-- branch: string (one of: european, pacific, homefront, diplomacy)
-- importance: string (one of: critical, major, standard, minor)
-  - critical: ~10 events that fundamentally changed the war's course
-  - major: ~15 events of significant military or political importance
-  - standard: ~15 notable events
-  - minor: ~10 smaller but interesting events
-- summary: string (1-2 sentences, factual)
-- wikipediaSearchQuery: string (exact Wikipedia article title for this event)
-- connections: string[] (titles of other events in this list that are directly related)
-
-Be historically accurate. Cover the full span of the war (1939-1945). Ensure good coverage across all four branches.`;
-
 async function preseed() {
-  console.log("Starting WW2 pre-seed...");
+  console.log("Starting WW2 pre-seed using sample data...");
+  console.log(`${sampleEvents.length} events to write across ${sampleTopic.branches.length} branches.`);
 
-  // Step 1: Create the topic document
-  console.log("Creating topic document...");
+  // Step 1: Create/update the topic document
+  console.log("\n--- Step 1: Topic document ---");
   const topicData = {
-    name: "World War II",
-    description: "The Second World War, 1939-1945. The deadliest conflict in human history.",
+    name: sampleTopic.name,
+    description: sampleTopic.description,
     createdAt: new Date().toISOString(),
-    branches: WW2_BRANCHES,
+    branches: sampleTopic.branches,
   };
 
   let topicExists = false;
@@ -78,120 +51,100 @@ async function preseed() {
   }
 
   if (topicExists) {
-    console.log("Topic already exists, patching...");
-    try {
-      await (proxy.firestore as any).patch("topics/ww2", topicData);
-      console.log("Topic patched successfully.");
-    } catch (patchErr) {
-      console.warn("Patch failed (non-critical, continuing):", (patchErr as Error).message);
-    }
+    console.log("Topic already exists, skipping creation.");
   } else {
-    console.log("Creating new topic with ID 'ww2'...");
-    await (proxy.firestore as any).create("topics", topicData, "ww2");
-    console.log("Topic created successfully.");
+    console.log("Creating topic 'ww2'...");
+    try {
+      await (proxy.firestore as any).create("topics", topicData, "ww2");
+      console.log("Topic created.");
+    } catch (err) {
+      console.warn("Create with docId failed, trying without:", (err as Error).message);
+      await (proxy.firestore as any).create("topics", { ...topicData, _id: "ww2" });
+    }
   }
 
-  // Step 2: Generate events via LLM
-  console.log("Generating events via LLM...");
-  const response = await (proxy.ai as any).chat({
-    provider: "openai",
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "system",
-        content: "You are a historian. Return only valid JSON, no markdown fences, no explanation.",
-      },
-      { role: "user", content: GENERATION_PROMPT },
-    ],
-    maxTokens: 8000,
-  });
+  // Step 2: Write events to Firestore
+  console.log("\n--- Step 2: Writing events ---");
+  const idMap = new Map<string, string>();
 
-  let events: Array<{
-    title: string;
-    date: string;
-    endDate?: string;
-    branch: string;
-    importance: string;
-    summary: string;
-    wikipediaSearchQuery: string;
-    connections: string[];
-  }>;
+  for (const event of sampleEvents) {
+    try {
+      const doc = await (proxy.firestore as any).create(`topics/ww2/events`, {
+        title: event.title,
+        date: event.date,
+        endDate: event.endDate || null,
+        branch: event.branch,
+        importance: event.importance,
+        summary: event.summary,
+        content: event.content || null,
+        sources: [],
+        connections: [], // resolve in next pass
+        generatedBy: "preseed",
+        enriched: false,
+        wikipediaSearchQuery: event.title,
+      }, event.id);
 
-  try {
-    const cleaned = response.content.replace(/```json\n?|```\n?/g, "").trim();
-    events = JSON.parse(cleaned);
-  } catch (err) {
-    console.error("Failed to parse LLM response:", err);
-    console.error("Raw response:", response.content);
-    process.exit(1);
+      idMap.set(event.id, doc.id);
+      console.log(`  Created: ${event.title} (${doc.id})`);
+    } catch (err) {
+      console.error(`  Failed to create ${event.title}:`, (err as Error).message);
+    }
   }
 
-  console.log(`Generated ${events.length} events. Writing to Firestore...`);
+  // Step 3: Resolve connections (sample data uses our local IDs)
+  console.log("\n--- Step 3: Resolving connections ---");
+  for (const event of sampleEvents) {
+    if (event.connections.length === 0) continue;
 
-  // Step 3: Write events to Firestore
-  const titleToId = new Map<string, string>();
+    const docId = idMap.get(event.id);
+    if (!docId) continue;
 
-  for (const event of events) {
-    const doc = await (proxy.firestore as any).create(`topics/ww2/events`, {
-      title: event.title,
-      date: event.date,
-      endDate: event.endDate || null,
-      branch: event.branch,
-      importance: event.importance,
-      summary: event.summary,
-      sources: [],
-      connections: [],
-      generatedBy: "preseed",
-      enriched: false,
-      wikipediaSearchQuery: event.wikipediaSearchQuery,
-    });
-
-    titleToId.set(event.title, doc.id);
-    console.log(`  Created: ${event.title} (${doc.id})`);
-  }
-
-  // Second pass: resolve connections
-  console.log("Resolving connections...");
-  for (const event of events) {
-    const eventId = titleToId.get(event.title);
-    if (!eventId) continue;
-
-    const connectionIds = event.connections
-      .map((title) => titleToId.get(title))
+    // Map local IDs to Firestore IDs
+    const resolvedConnections = event.connections
+      .map((connId) => idMap.get(connId))
       .filter((id): id is string => id !== undefined);
 
-    if (connectionIds.length > 0) {
-      await (proxy.firestore as any).patch(`topics/ww2/events/${eventId}`, {
-        connections: connectionIds,
-      });
+    if (resolvedConnections.length > 0) {
+      try {
+        await (proxy.firestore as any).patch(`topics/ww2/events/${docId}`, {
+          connections: resolvedConnections,
+        });
+        console.log(`  ${event.title}: ${resolvedConnections.length} connections`);
+      } catch (err) {
+        console.warn(`  Failed to patch connections for ${event.title}:`, (err as Error).message);
+      }
     }
   }
 
-  // Step 4: Enrich events
-  console.log("Enriching events (this may take a few minutes)...");
-  for (const event of events) {
-    const eventId = titleToId.get(event.title);
-    if (!eventId) continue;
+  // Step 4: Enrich events (Wikipedia + search)
+  console.log("\n--- Step 4: Enriching events ---");
+  console.log("This may take a few minutes...");
+
+  for (const event of sampleEvents) {
+    const docId = idMap.get(event.id);
+    if (!docId) continue;
 
     try {
       await (proxy.agent as any).enrichEvent({
         timelineId: "ww2",
-        eventId,
+        eventId: docId,
         event: {
           title: event.title,
           date: event.date,
-          wikipedia_search_query: event.wikipediaSearchQuery,
+          wikipedia_search_query: event.title,
         },
       });
       console.log(`  Enriched: ${event.title}`);
     } catch (err) {
-      console.warn(`  Failed to enrich ${event.title}:`, err);
+      console.warn(`  Failed to enrich ${event.title}:`, (err as Error).message);
     }
 
+    // Rate limit
     await new Promise((r) => setTimeout(r, 500));
   }
 
-  console.log("Pre-seed complete!");
+  console.log("\nPre-seed complete!");
+  console.log(`Wrote ${idMap.size} events. Run 'npm run dev' to see them.`);
 }
 
 preseed().catch(console.error);
