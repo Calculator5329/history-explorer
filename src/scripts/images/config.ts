@@ -32,5 +32,3 @@ export const RATE_LIMIT_MS = 800;
 export const MAX_IMAGES_PER_EVENT = 10;
 export const TARGET_IMAGES = 8;
 
-export const flickrApiKey = (process.env.FLICKR_API_KEY || process.env.VITE_FLICKR_API_KEY || "").trim();
-export const naraApiKey = (process.env.NARA_API_KEY || process.env.VITE_NARA_API_KEY || "").trim();

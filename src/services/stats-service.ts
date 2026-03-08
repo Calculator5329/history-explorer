@@ -45,7 +45,7 @@ function computeTopicStats(topic: Topic, events: TimelineEvent[]): TopicStats {
   for (const event of events) {
     sourceCount += Array.isArray(event.sources) ? event.sources.length : 0;
     if (event.content && event.content.trim()) eventsWithContent += 1;
-    if ((Array.isArray(event.images) && event.images.length > 0) || Boolean(event.wikipediaImageUrl)) {
+    if (Array.isArray(event.images) && event.images.length > 0) {
       eventsWithImages += 1;
     }
 

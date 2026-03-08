@@ -1,8 +1,8 @@
 import type { TimelineEvent, EventImage } from "../../types/index.ts";
-import type { PipelineOptions, CandidateImage, CsvImageRow } from "./types.ts";
-import { getAdapters, buildCsvIndex } from "./sources/index.ts";
+import type { PipelineOptions, CandidateImage } from "./types.ts";
+import { getAdapters } from "./sources/index.ts";
 import { filterAndRank } from "./filters.ts";
-import { uploadImageToGcs, isGcsUrl } from "./storage.ts";
+import { uploadImageToGcs } from "./storage.ts";
 import { fetchEvents, saveImages, eventHasGcsImages } from "./firestore.ts";
 import { sleep } from "./utils.ts";
 import { RATE_LIMIT_MS } from "./config.ts";
@@ -20,8 +20,7 @@ function toEventImage(publicUrl: string, candidate: CandidateImage): EventImage 
 async function processEvent(
   event: TimelineEvent,
   topicId: string,
-  options: PipelineOptions,
-  csvIndex: Map<string, CsvImageRow[]>
+  options: PipelineOptions
 ): Promise<{ success: boolean; count: number }> {
   const adapters = getAdapters(options.sources);
 
@@ -29,7 +28,7 @@ async function processEvent(
   const allCandidates: CandidateImage[] = [];
   for (const adapter of adapters) {
     try {
-      const candidates = await adapter.fetchCandidates(event, { csvIndex });
+      const candidates = await adapter.fetchCandidates(event);
       allCandidates.push(...candidates);
       console.log(`    ${adapter.name}: ${candidates.length} candidates`);
     } catch (err: any) {
@@ -87,10 +86,8 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
   console.log(`  Sources: ${[...options.sources].join(", ")}`);
   console.log(`  Max images: ${options.maxImages}`);
   console.log(`  Mode: ${options.dryRun ? "dry-run" : "write"}${options.force ? ", force" : ""}`);
-  if (options.csvPath) console.log(`  CSV: ${options.csvPath}`);
   console.log();
 
-  // Fetch all events
   const events = await fetchEvents(options.topicId);
   if (events.length === 0) {
     console.log("  No events found.");
@@ -108,14 +105,6 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
 
   console.log(`  Processing ${selectedEvents.length} events...\n`);
 
-  // Build CSV index if needed
-  let csvIndex = new Map<string, CsvImageRow[]>();
-  if (options.csvPath && (options.sources.has("nara-csv") || options.sources.has("all"))) {
-    console.log(`  Building CSV index from: ${options.csvPath}`);
-    csvIndex = await buildCsvIndex(options.csvPath, selectedEvents);
-    console.log();
-  }
-
   let success = 0;
   let skipped = 0;
   let failed = 0;
@@ -123,19 +112,17 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
   for (const event of selectedEvents) {
     console.log(`  [${event.id}] ${event.title}`);
 
-    // Skip if already has GCS images (unless --force)
     if (!options.force && eventHasGcsImages(event)) {
       console.log(`    Already has GCS images, skipping. (--force to overwrite)`);
       skipped++;
       continue;
     }
 
-    const result = await processEvent(event, options.topicId, options, csvIndex);
+    const result = await processEvent(event, options.topicId, options);
     if (result.success) success++;
     else failed++;
 
     console.log();
-    // Inter-event cooldown to avoid rate limiting from image sources
     await sleep(2_000);
   }
 

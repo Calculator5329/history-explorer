@@ -20,15 +20,6 @@ export interface SourceAdapter {
 
 export interface SourceOptions {
   maxResults?: number;
-  csvIndex?: Map<string, CsvImageRow[]>;
-}
-
-export interface CsvImageRow {
-  title: string;
-  url: string;
-  localIdentifier?: string;
-  naId?: string;
-  objectType?: string;
 }
 
 export interface UploadedImage {
@@ -44,7 +35,6 @@ export interface PipelineOptions {
   maxImages: number;
   dryRun: boolean;
   force: boolean;
-  csvPath?: string;
   concurrency: number;
   migrate: boolean;
 }

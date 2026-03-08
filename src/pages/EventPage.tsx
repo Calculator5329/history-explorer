@@ -44,7 +44,7 @@ export default function EventPage() {
     const hasDiverseSources = event.sources?.some(
       (s) => s.url && !/wikipedia\.org/i.test(s.url)
     );
-    if (event.enriched && event.wikipediaImageUrl && event.content && hasDiverseSources) return;
+    if (event.enriched && event.content && hasDiverseSources) return;
 
     let cancelled = false;
 
@@ -55,9 +55,9 @@ export default function EventPage() {
         (s) => s.url && !/wikipedia\.org/i.test(s.url)
       );
 
-      // Step 1: Enrich (image + diverse sources)
+      // Step 1: Enrich (diverse sources + Wikipedia extract for content)
       let enriched = event;
-      if (!event.enriched || !event.wikipediaImageUrl || !hadDiverseSources) {
+      if (!event.enriched || !hadDiverseSources) {
         enriched = await enrichEvent(topicId, event);
         if (cancelled) return;
         setEvent((prev) => ({ ...prev, ...enriched } as typeof prev));
@@ -133,7 +133,7 @@ export default function EventPage() {
             </div>
           </div>
 
-          <EventImage url={event.wikipediaImageUrl} alt={event.title} images={event.images} />
+          <EventImage alt={event.title} images={event.images} />
           <EventContent
             content={event.content}
             summary={event.summary}
