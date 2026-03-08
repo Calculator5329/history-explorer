@@ -10,6 +10,35 @@ export interface Source {
   snippet: string;
 }
 
+export type EventType =
+  | "battle"
+  | "bombing"
+  | "invasion"
+  | "naval"
+  | "treaty"
+  | "declaration"
+  | "surrender"
+  | "homefront"
+  | "political"
+  | "liberation"
+  | "evacuation";
+
+export type Region =
+  | "western_europe"
+  | "eastern_europe"
+  | "pacific"
+  | "north_africa"
+  | "north_america"
+  | "east_asia"
+  | "southeast_asia"
+  | "atlantic";
+
+export interface EventImage {
+  url: string;
+  caption: string;
+  source?: string;
+}
+
 export interface TimelineEvent {
   id: string;
   title: string;
@@ -26,6 +55,9 @@ export interface TimelineEvent {
   generatedBy: "preseed" | "chat" | "enrichment";
   enriched: boolean;
   wikipediaSearchQuery?: string;
+  eventType?: EventType;
+  region?: Region;
+  images?: EventImage[];
 }
 
 export interface Topic {
