@@ -1,9 +1,32 @@
 import { createClient } from "@calculator-5329/cloud-proxy";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 
-const proxy = createClient({
-  baseUrl: process.env.PROXY_URL!,
-  token: process.env.PROXY_TOKEN!,
-});
+// Load .env file manually (no dotenv dependency needed)
+try {
+  const envPath = resolve(import.meta.dirname, "../../.env");
+  const envContent = readFileSync(envPath, "utf-8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx);
+    const val = trimmed.slice(eqIdx + 1);
+    if (!process.env[key]) process.env[key] = val;
+  }
+} catch {}
+
+const baseUrl = process.env.PROXY_URL || process.env.VITE_PROXY_URL;
+const token = process.env.PROXY_TOKEN || process.env.VITE_PROXY_TOKEN;
+
+if (!baseUrl || !token) {
+  console.error("Missing PROXY_URL/VITE_PROXY_URL or PROXY_TOKEN/VITE_PROXY_TOKEN");
+  console.error("Set them in .env or as environment variables.");
+  process.exit(1);
+}
+
+const proxy = createClient({ baseUrl, token });
 
 const WW2_BRANCHES = [
   { id: "european", name: "European Theater", color: "#4A90D9" },
