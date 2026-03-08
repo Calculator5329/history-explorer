@@ -13,7 +13,7 @@ export default function Timeline({ events, branches, onEventClick }: TimelinePro
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current || events.length === 0) return;
+    if (!containerRef.current || events.length === 0 || !branches || branches.length === 0) return;
 
     function render() {
       if (!containerRef.current) return;
