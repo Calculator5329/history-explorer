@@ -4,7 +4,7 @@ import EventImage from "../components/EventDetail/EventImage.tsx";
 import EventContent from "../components/EventDetail/EventContent.tsx";
 import EventSources from "../components/EventDetail/EventSources.tsx";
 import RelatedEvents from "../components/EventDetail/RelatedEvents.tsx";
-import ChatPanel from "../components/Chat/ChatPanel.tsx";
+import ChatGate from "../components/Chat/ChatGate.tsx";
 import { useChat } from "../hooks/useChat.ts";
 import { useEvent } from "../hooks/useEvent.ts";
 import { useTimeline } from "../hooks/useTimeline.ts";
@@ -114,7 +114,7 @@ export default function EventPage() {
         />
         <RelatedEvents connections={event.connections} allEvents={activeEvents} />
         <EventSources sources={event.sources} />
-        <ChatPanel messages={messages} sending={sending} onSend={send} />
+        <ChatGate messages={messages} sending={sending} onSend={send} />
       </main>
     </div>
   );
