@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preseed": "npx tsx src/scripts/preseed.ts"
   },
   "dependencies": {
     "@calculator-5329/cloud-proxy": "file:../crs-package",
