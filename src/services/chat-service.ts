@@ -176,8 +176,8 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
     (proxy.ai as any).chatStream({
       provider: "anthropic",
       model: "claude-sonnet-4-5-20250514",
+      system: systemPrompt,
       messages: [
-        { role: "system", content: systemPrompt },
         { role: "user", content: eventContext },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: userMessage },
@@ -333,8 +333,8 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
     (proxy.ai as any).chat({
       provider: "anthropic",
       model: "claude-sonnet-4-5-20250514",
+      system: systemPrompt,
       messages: [
-        { role: "system", content: systemPrompt },
         { role: "user", content: eventContext },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: userMessage },
@@ -453,15 +453,17 @@ async function autoImproveEvent(
     .join("\n");
 
   try {
+    const improveSystemPrompt =
+      "You are a historian writing an engaging, detailed explanation of a historical event. " +
+      "Use inline citations [1], [2], etc. referencing the provided sources. " +
+      "Write 2-4 paragraphs. Be factual and vivid.";
+
     const response: any = await withRetry(() =>
       (proxy as any).ai.chat({
         provider: "anthropic",
         model: "claude-sonnet-4-5-20250514",
+        system: improveSystemPrompt,
         messages: [
-          {
-            role: "system",
-            content: `You are a historian writing an engaging, detailed explanation of a historical event. Use inline citations [1], [2], etc. referencing the provided sources. Write 2-4 paragraphs. Be factual and vivid.`,
-          },
           {
             role: "user",
             content: `Write about: ${event.title} (${event.date})
