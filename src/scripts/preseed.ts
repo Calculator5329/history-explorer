@@ -74,6 +74,8 @@ async function preseed() {
         endDate: event.endDate || null,
         branch: event.branch,
         importance: event.importance,
+        eventType: event.eventType || null,
+        region: event.region || null,
         summary: event.summary,
         sources: [],
         connections: event.connections,
