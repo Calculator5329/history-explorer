@@ -57,13 +57,21 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
   // Main group for zoom/pan
   const g = svg.append("g");
 
+  // Header group ref - will be set later when header SVG is created
+  let headerGroupRef: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
+
   // Zoom behavior
   const zoom = d3
     .zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.5, 10])
     .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
       g.attr("transform", event.transform.toString());
-      const k = event.transform.k;
+      const { y: ty, k } = event.transform;
+
+      // Sync header labels with vertical pan/zoom
+      if (headerGroupRef) {
+        headerGroupRef.attr("transform", `translate(0, ${ty}) scale(1, ${k})`);
+      }
 
       // Show/hide events based on zoom level
       g.selectAll(".event-node").each(function () {
@@ -184,7 +192,7 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
     width: number;
     height: number;
   }
-  const placedLabels: LabelRect[] = [];
+  const lanePlacedLabels = new Map<string, LabelRect[]>();
 
   function labelsOverlap(a: LabelRect, b: LabelRect): boolean {
     return !(a.x + a.width / 2 < b.x - b.width / 2 ||
@@ -194,17 +202,27 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
   }
 
   function findLabelPosition(
-    cx: number, cy: number, r: number, textWidth: number
+    branchId: string,
+    cx: number,
+    cy: number,
+    r: number,
+    textWidth: number
   ): { dx: number; dy: number } {
     const textHeight = 14;
-    const offsets = [
-      { dx: 0, dy: r + 16 },
-      { dx: 0, dy: -(r + 6) },
-      { dx: r + 8, dy: 4 },
-      { dx: -(r + 8), dy: 4 },
-      { dx: r + 6, dy: r + 10 },
-      { dx: -(r + 6), dy: -(r + 4) },
-    ];
+    const laneLabels = lanePlacedLabels.get(branchId) || [];
+    const nearby = laneLabels.filter(
+      (rect) => Math.abs(rect.x - cx) < (rect.width + textWidth) / 2 + 24
+    ).length;
+
+    const offsets: Array<{ dx: number; dy: number }> = [];
+    for (let i = 0; i < 8; i++) {
+      const rank = nearby + i;
+      const direction = rank % 2 === 0 ? 1 : -1;
+      const level = Math.floor(rank / 2);
+      const dx = level > 2 ? (direction > 0 ? 10 : -10) : 0;
+      const dy = direction * (r + 14 + level * 14);
+      offsets.push({ dx, dy });
+    }
 
     for (const offset of offsets) {
       const candidate: LabelRect = {
@@ -213,20 +231,22 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
         width: textWidth,
         height: textHeight + 4,
       };
-      const hasOverlap = placedLabels.some((placed) => labelsOverlap(candidate, placed));
+      const hasOverlap = laneLabels.some((placed) => labelsOverlap(candidate, placed));
       if (!hasOverlap) {
-        placedLabels.push(candidate);
+        laneLabels.push(candidate);
+        lanePlacedLabels.set(branchId, laneLabels);
         return offset;
       }
     }
 
-    const fallback = offsets[0];
-    placedLabels.push({
+    const fallback = { dx: 0, dy: r + 18 + nearby * 12 };
+    laneLabels.push({
       x: cx + fallback.dx,
       y: cy + fallback.dy - textHeight,
       width: textWidth,
       height: textHeight + 4,
     });
+    lanePlacedLabels.set(branchId, laneLabels);
     return fallback;
   }
 
@@ -298,7 +318,7 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
     const estTextWidth = event.title.length * charWidth;
 
     // Smart label placement
-    const labelPos = findLabelPosition(x, y, r, estTextWidth);
+    const labelPos = findLabelPosition(event.branch, x, y, r, estTextWidth);
 
     // Background pill for label
     const pillPadX = 4;
@@ -351,22 +371,25 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
       });
   });
 
-  // Draw lane headers (these stay fixed via a separate SVG overlay)
+  // Draw lane headers (separate SVG that tracks zoom transform vertically)
   const headerSvg = d3
     .select(container)
     .append("svg")
     .attr("width", MARGIN.left)
-    .attr("height", height)
+    .attr("height", height * 10)
     .style("position", "absolute")
     .style("top", "0")
     .style("left", "0")
     .style("pointer-events", "none")
     .style("background", "linear-gradient(to right, #0d0d12 80%, transparent)");
 
+  const headerGroup = headerSvg.append("g");
+  headerGroupRef = headerGroup;
+
   branches.forEach((branch) => {
     const y = laneY.get(branch.id)!;
 
-    headerSvg
+    headerGroup
       .append("rect")
       .attr("x", 10)
       .attr("y", y - 12)
@@ -375,7 +398,7 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
       .attr("rx", 2)
       .attr("fill", branch.color);
 
-    headerSvg
+    headerGroup
       .append("text")
       .attr("x", 22)
       .attr("y", y)
@@ -389,3 +412,6 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
 
   return { svg, zoom };
 }
+
+
+

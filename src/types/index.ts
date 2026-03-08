@@ -52,7 +52,7 @@ export interface TimelineEvent {
   wikipediaExtract?: string;
   sources: Source[];
   connections: string[];
-  generatedBy: "preseed" | "chat" | "enrichment";
+  generatedBy: "preseed" | "chat" | "enrichment" | "expansion" | "seed";
   enriched: boolean;
   wikipediaSearchQuery?: string;
   eventType?: EventType;
@@ -66,6 +66,34 @@ export interface Topic {
   description: string;
   createdAt: string;
   branches: Branch[];
+  eventIds?: string[];
+  seededAt?: string;
+  seedPrompt?: string;
+  timeframe?: string;
+}
+
+export interface ProposedEvent {
+  title: string;
+  date: string;
+  endDate?: string;
+  branch: string;
+  importance: "critical" | "major" | "standard" | "minor";
+  summary: string;
+  wikipediaSearchQuery?: string;
+  eventType?: EventType;
+  region?: Region;
+}
+
+export interface TopicDraft {
+  name: string;
+  description: string;
+  timeframe: string;
+}
+
+export interface BranchDraft {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export interface ChatMessage {

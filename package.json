@@ -9,14 +9,19 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "preseed": "npx tsx src/scripts/preseed.ts",
+    "fetch-images": "npx tsx src/scripts/fetch-wikimedia-images.ts",
     "deploy": "npm run build && firebase deploy --only hosting:history-explorer"
   },
   "dependencies": {
     "@calculator-5329/cloud-proxy": "file:../crs-package",
+    "@types/topojson-client": "^3.1.5",
     "d3": "^7.9.0",
+    "marked": "^17.0.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.13.1"
+    "react-router-dom": "^7.13.1",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

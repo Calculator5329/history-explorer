@@ -1,15 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Topic, TimelineEvent } from "../types/index.ts";
-
-const baseUrl = import.meta.env.VITE_PROXY_URL;
-const token = import.meta.env.VITE_PROXY_TOKEN;
-const headers = { "Content-Type": "application/json", "x-api-key": token };
+import { sampleEvents } from "../data/ww2-sample.ts";
+import {
+  fetchCollection,
+  fetchDoc,
+  fetchDocsBatched,
+  isValidEvent,
+} from "../services/firestore-cache.ts";
 
 export function useTimeline(topicId: string | undefined) {
   const [topic, setTopic] = useState<Topic | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+
+  const refresh = useCallback(() => {
+    setReloadTick((prev) => prev + 1);
+  }, []);
 
   useEffect(() => {
     if (!topicId) return;
@@ -19,41 +27,80 @@ export function useTimeline(topicId: string | undefined) {
     async function load() {
       setLoading(true);
       setError(null);
-      try {
-        // Use query endpoint to list events (bypasses path resolution bug)
-        const resp = await fetch(`${baseUrl}/firestore/topics/${topicId}/events/query`, {
-          method: "POST", headers,
-          body: JSON.stringify({
-            orderBy: [{ field: "date", direction: "asc" }],
-            limit: 500,
-          }),
+
+      const sampleById = new Map(sampleEvents.map((e) => [e.id, e]));
+      const backfillSampleFields = (docs: TimelineEvent[]) =>
+        docs.map((doc) => {
+          const sample = sampleById.get(doc.id);
+          if (sample && !doc.region && sample.region) {
+            return { ...doc, region: sample.region };
+          }
+          return doc;
         });
 
-        if (!resp.ok) {
-          // Fallback: try the regular list endpoint
-          const listResp = await fetch(`${baseUrl}/firestore/topics/${topicId}/events?limit=500`, {
-            method: "GET", headers,
+      try {
+        let docs: TimelineEvent[] = [];
+
+        try {
+          const raw = await fetchCollection(`topics/${topicId}/events`, {
+            limit: 500,
+            orderBy: "date",
+            direction: "asc",
           });
-          if (listResp.ok) {
-            const listData = await listResp.json();
-            if (!cancelled) {
-              setEvents((listData.documents || []) as TimelineEvent[]);
-            }
+          const valid = raw.filter(isValidEvent);
+          if (valid.length > 0) {
+            docs = backfillSampleFields(valid);
           } else {
-            throw new Error(`Failed to load events: ${resp.status}`);
+            throw new Error("Collection list returned no valid events");
           }
-        } else {
-          const data = await resp.json();
-          if (!cancelled) {
-            setEvents((data.documents || []) as TimelineEvent[]);
+        } catch (collectionErr) {
+          console.warn("Collection list failed:", collectionErr);
+
+          try {
+            const knownIds = sampleEvents.map((e) => e.id);
+
+            try {
+              const topicDoc = await fetchDoc(`topics/${topicId}`);
+              if (topicDoc?.eventIds && Array.isArray(topicDoc.eventIds)) {
+                for (const id of topicDoc.eventIds) {
+                  if (!knownIds.includes(id)) knownIds.push(id);
+                }
+              }
+            } catch {
+              // Ignore topic read fallback failures
+            }
+
+            const paths = knownIds.map((id) => `topics/${topicId}/events/${id}`);
+            const results = await fetchDocsBatched(paths, 3, 300);
+
+            for (const [, doc] of results) {
+              if (isValidEvent(doc)) {
+                docs.push(doc);
+              }
+            }
+
+            if (docs.length > 0) {
+              docs = backfillSampleFields(docs);
+              docs.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+            } else {
+              throw new Error("No valid events from individual gets");
+            }
+          } catch (fallbackErr) {
+            console.warn("Individual gets also failed:", fallbackErr);
           }
         }
 
-        // Try to get topic doc for branches
-        // The server has a path bug, so try batch-style read
-        // For now, we'll set a null topic and let the fallback handle branches
         if (!cancelled) {
-          setTopic(null); // Will fall back to sampleTopic in TimelinePage
+          setEvents(docs);
+        }
+
+        try {
+          const topicDoc = await fetchDoc(`topics/${topicId}`);
+          if (!cancelled && topicDoc && topicDoc.name) {
+            setTopic(topicDoc as Topic);
+          }
+        } catch {
+          if (!cancelled) setTopic(null);
         }
       } catch (err) {
         if (cancelled) return;
@@ -68,7 +115,7 @@ export function useTimeline(topicId: string | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [topicId]);
+  }, [topicId, reloadTick]);
 
-  return { topic, events, loading, error };
+  return { topic, events, loading, error, refresh };
 }

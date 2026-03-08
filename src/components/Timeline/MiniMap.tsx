@@ -1,4 +1,8 @@
-import { useMemo } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
+import * as d3 from "d3";
+import * as topojson from "topojson-client";
+import worldData from "world-atlas/countries-110m.json";
+import type { Topology } from "topojson-specification";
 import type { TimelineEvent, Branch, Region } from "../../types/index.ts";
 import "./MiniMap.css";
 
@@ -8,78 +12,263 @@ interface MiniMapProps {
   onRegionHover?: (region: Region | null) => void;
 }
 
-// Simplified world region polygons (SVG paths in a 300x150 viewBox)
-const REGION_PATHS: Record<Region, string> = {
-  north_america:
-    "M20,20 L90,15 L100,40 L85,70 L60,80 L30,65 L15,45 Z",
-  western_europe:
-    "M130,20 L155,18 L160,35 L155,55 L140,60 L128,45 Z",
-  eastern_europe:
-    "M160,15 L195,12 L200,45 L190,65 L160,60 L158,35 Z",
-  north_africa:
-    "M125,65 L195,60 L200,80 L180,90 L130,88 L120,75 Z",
-  atlantic:
-    "M95,30 L125,25 L130,60 L120,70 L95,65 Z",
-  east_asia:
-    "M220,25 L260,20 L270,50 L250,65 L220,55 Z",
-  southeast_asia:
-    "M240,65 L275,55 L285,80 L270,95 L245,90 Z",
-  pacific:
-    "M260,70 L290,60 L295,100 L275,120 L250,110 L245,85 Z",
+// Map ISO 3166-1 numeric country codes to WW2 theater regions
+const COUNTRY_TO_REGION: Record<string, Region> = {
+  // North America
+  "840": "north_america", // USA
+  "124": "north_america", // Canada
+  "484": "north_america", // Mexico
+
+  // Western Europe
+  "826": "western_europe", // UK
+  "250": "western_europe", // France
+  "380": "western_europe", // Italy
+  "724": "western_europe", // Spain
+  "620": "western_europe", // Portugal
+  "056": "western_europe", // Belgium
+  "528": "western_europe", // Netherlands
+  "756": "western_europe", // Switzerland
+  "040": "western_europe", // Austria
+  "372": "western_europe", // Ireland
+  "208": "western_europe", // Denmark
+  "578": "western_europe", // Norway
+  "752": "western_europe", // Sweden
+  "276": "western_europe", // Germany
+  "246": "western_europe", // Finland
+  "300": "western_europe", // Greece
+
+  // Eastern Europe
+  "616": "eastern_europe", // Poland
+  "643": "eastern_europe", // Russia
+  "804": "eastern_europe", // Ukraine
+  "112": "eastern_europe", // Belarus
+  "642": "eastern_europe", // Romania
+  "100": "eastern_europe", // Bulgaria
+  "203": "eastern_europe", // Czech Republic
+  "703": "eastern_europe", // Slovakia
+  "348": "eastern_europe", // Hungary
+  "688": "eastern_europe", // Serbia
+  "191": "eastern_europe", // Croatia
+  "070": "eastern_europe", // Bosnia
+  "008": "eastern_europe", // Albania
+  "807": "eastern_europe", // North Macedonia
+  "498": "eastern_europe", // Moldova
+  "440": "eastern_europe", // Lithuania
+  "428": "eastern_europe", // Latvia
+  "233": "eastern_europe", // Estonia
+  "499": "eastern_europe", // Montenegro
+  "705": "eastern_europe", // Slovenia
+
+  // North Africa
+  "012": "north_africa", // Algeria
+  "434": "north_africa", // Libya
+  "818": "north_africa", // Egypt
+  "788": "north_africa", // Tunisia
+  "504": "north_africa", // Morocco
+  "732": "north_africa", // Western Sahara
+
+  // East Asia
+  "392": "east_asia", // Japan
+  "156": "east_asia", // China
+  "496": "east_asia", // Mongolia
+  "408": "east_asia", // North Korea
+  "410": "east_asia", // South Korea
+  "158": "east_asia", // Taiwan
+
+  // Southeast Asia
+  "360": "southeast_asia", // Indonesia
+  "608": "southeast_asia", // Philippines
+  "704": "southeast_asia", // Vietnam
+  "764": "southeast_asia", // Thailand
+  "104": "southeast_asia", // Myanmar
+  "458": "southeast_asia", // Malaysia
+  "116": "southeast_asia", // Cambodia
+  "418": "southeast_asia", // Laos
+  "702": "southeast_asia", // Singapore
+  "096": "southeast_asia", // Brunei
+
+  // Pacific
+  "036": "pacific",  // Australia
+  "554": "pacific",  // New Zealand
+  "598": "pacific",  // Papua New Guinea
+  "242": "pacific",  // Fiji
+  "090": "pacific",  // Solomon Islands
+};
+
+// Map geographic regions to their WW2 theater branch
+const REGION_TO_BRANCH: Record<Region, string> = {
+  western_europe: "european",
+  eastern_europe: "european",
+  north_africa: "european",
+  atlantic: "european",
+  pacific: "pacific",
+  east_asia: "pacific",
+  southeast_asia: "pacific",
+  north_america: "homefront",
+};
+
+const DIM_FILL = "#161628";
+const DIM_STROKE = "#1e1e30";
+
+const REGION_CENTERS: Record<Region, [number, number]> = {
+  north_america: [-100, 40],
+  western_europe: [5, 48],
+  eastern_europe: [30, 52],
+  north_africa: [15, 28],
+  atlantic: [-30, 35],
+  east_asia: [120, 35],
+  southeast_asia: [110, 5],
+  pacific: [160, -15],
 };
 
 export default function MiniMap({ events, branches, onRegionHover }: MiniMapProps) {
-  const regionColors = useMemo(() => {
-    const colorMap = new Map<string, string>();
-    branches.forEach((b) => colorMap.set(b.id, b.color));
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [expanded, setExpanded] = useState(false);
 
-    const regionMap = new Map<Region, Set<string>>();
-    events.forEach((event) => {
-      if (!event.region) return;
-      if (!regionMap.has(event.region)) {
-        regionMap.set(event.region, new Set());
-      }
-      const color = colorMap.get(event.branch);
-      if (color) regionMap.get(event.region)!.add(color);
+  // Build branch color map: branch id -> color
+  const branchColors = useMemo(() => {
+    const map = new Map<string, string>();
+    branches.forEach((b) => map.set(b.id, b.color));
+    return map;
+  }, [branches]);
+
+  // Get color for a region based on its theater branch
+  const getRegionColor = (region: Region): string => {
+    const branchId = REGION_TO_BRANCH[region];
+    return branchColors.get(branchId) || DIM_FILL;
+  };
+
+  // Determine which regions have events
+  const activeRegions = useMemo(() => {
+    const regions = new Set<Region>();
+    events.forEach((e) => { if (e.region) regions.add(e.region); });
+    return regions;
+  }, [events]);
+
+  // Legend entries: branch name + color for active theaters
+  const legendEntries = useMemo(() => {
+    const activeBranches = new Set<string>();
+    activeRegions.forEach((r) => activeBranches.add(REGION_TO_BRANCH[r]));
+    return branches.filter((b) => activeBranches.has(b.id));
+  }, [activeRegions, branches]);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const width = 360;
+    const height = 180;
+
+    d3.select(svg).selectAll("*").remove();
+
+    const projection = d3.geoNaturalEarth1()
+      .scale(65)
+      .translate([width / 2, height / 2 + 10]);
+
+    const path = d3.geoPath(projection);
+
+    const world = worldData as unknown as Topology;
+    const countries = topojson.feature(
+      world,
+      world.objects.countries as any
+    ) as any;
+
+    const g = d3.select(svg).append("g");
+
+    // Graticule
+    const graticule = d3.geoGraticule().step([30, 30]);
+    g.append("path")
+      .datum(graticule())
+      .attr("d", path as any)
+      .attr("fill", "none")
+      .attr("stroke", "#1a1a2e")
+      .attr("stroke-width", 0.3);
+
+    // Countries colored by theater
+    g.selectAll("path.country")
+      .data(countries.features)
+      .enter()
+      .append("path")
+      .attr("class", "country")
+      .attr("d", path as any)
+      .attr("fill", (d: any) => {
+        const region = COUNTRY_TO_REGION[d.id];
+        if (!region) return DIM_FILL;
+        if (!activeRegions.has(region)) return DIM_FILL;
+        return getRegionColor(region);
+      })
+      .attr("fill-opacity", (d: any) => {
+        const region = COUNTRY_TO_REGION[d.id];
+        if (!region || !activeRegions.has(region)) return 0.5;
+        return 0.45;
+      })
+      .attr("stroke", (d: any) => {
+        const region = COUNTRY_TO_REGION[d.id];
+        if (!region || !activeRegions.has(region)) return DIM_STROKE;
+        return getRegionColor(region);
+      })
+      .attr("stroke-width", (d: any) => {
+        const region = COUNTRY_TO_REGION[d.id];
+        return region && activeRegions.has(region) ? 0.5 : 0.3;
+      })
+      .style("cursor", (d: any) => {
+        const region = COUNTRY_TO_REGION[d.id];
+        return region ? "pointer" : "default";
+      })
+      .on("mouseenter", (_event: MouseEvent, d: any) => {
+        const region = COUNTRY_TO_REGION[d.id];
+        if (region) onRegionHover?.(region);
+      })
+      .on("mouseleave", () => {
+        onRegionHover?.(null);
+      });
+
+    // Event dots
+    events.filter(e => e.region).forEach((event, i) => {
+      const center = REGION_CENTERS[event.region!];
+      if (!center) return;
+      const projected = projection(center);
+      if (!projected) return;
+      const color = branchColors.get(event.branch) || "#fff";
+      const ox = ((i * 7) % 15) - 7;
+      const oy = ((i * 5) % 11) - 5;
+      g.append("circle")
+        .attr("cx", projected[0] + ox)
+        .attr("cy", projected[1] + oy)
+        .attr("r", event.importance === "critical" ? 2.5 : 1.5)
+        .attr("fill", color)
+        .attr("fill-opacity", 0.9)
+        .attr("stroke", "#000")
+        .attr("stroke-width", 0.3);
     });
-
-    const result = new Map<Region, string>();
-    regionMap.forEach((colors, region) => {
-      result.set(region, [...colors][0]);
-    });
-    return result;
-  }, [events, branches]);
-
-  const activeRegions = [...regionColors.keys()];
+  }, [events, branches, branchColors, activeRegions, onRegionHover]);
 
   return (
-    <div className="mini-map">
-      <span className="mini-map-title">Theater Map</span>
-      <svg viewBox="0 0 300 150">
-        {(Object.entries(REGION_PATHS) as [Region, string][]).map(([region, path]) => {
-          const color = regionColors.get(region);
-          return (
-            <path
-              key={region}
-              d={path}
-              className={`mini-map-region ${color ? "active" : ""}`}
-              fill={color || "#1a1a2a"}
-              fillOpacity={color ? 0.4 : 1}
-              onMouseEnter={() => onRegionHover?.(region)}
-              onMouseLeave={() => onRegionHover?.(null)}
-            />
-          );
-        })}
-      </svg>
-      {activeRegions.length > 0 && (
+    <div className={`mini-map ${expanded ? "mini-map-expanded" : ""}`}>
+      <div className="mini-map-header">
+        <span className="mini-map-title">Theater Map</span>
+        <button
+          className="mini-map-expand-btn"
+          onClick={() => setExpanded(!expanded)}
+          title={expanded ? "Shrink map" : "Enlarge map"}
+        >
+          {expanded ? "\u2715" : "\u26F6"}
+        </button>
+      </div>
+      <svg
+        ref={svgRef}
+        viewBox="0 0 360 180"
+        preserveAspectRatio="xMidYMid meet"
+      />
+      {legendEntries.length > 0 && (
         <div className="mini-map-legend">
-          {activeRegions.map((region) => (
-            <span key={region} className="mini-map-legend-item">
+          {legendEntries.map((branch) => (
+            <span key={branch.id} className="mini-map-legend-item">
               <span
                 className="mini-map-legend-dot"
-                style={{ background: regionColors.get(region) }}
+                style={{ background: branch.color }}
               />
-              {region.replace(/_/g, " ")}
+              {branch.name}
             </span>
           ))}
         </div>

@@ -24,32 +24,50 @@ export default function EventPage() {
   const activeEvents = allEvents.length > 0 ? allEvents : sampleEvents;
   const branch = activeTopic.branches.find((b) => b.id === event?.branch);
 
-  const { messages, sending, send } = useChat(topicId, event || null);
+  const { messages, sending, send, streamingText, streamingSources } = useChat(topicId, event || null, activeEvents);
 
-  // Trigger enrichment on mount if needed
+  // Trigger enrichment on mount if needed (works with both Firestore and sample data)
+  // Deduplication happens in the enricher service (pending maps) — safe with React strict mode.
   useEffect(() => {
-    if (!event || !topicId || !firestoreEvent) return;
+    // Wait for Firestore to finish loading before deciding to enrich
+    if (eventLoading || !event || !topicId) return;
+    // Skip if already fully enriched with image, content, AND diverse (non-Wikipedia) sources
+    const hasDiverseSources = event.sources?.some(
+      (s) => s.url && !/wikipedia\.org/i.test(s.url)
+    );
+    if (event.enriched && event.wikipediaImageUrl && event.content && hasDiverseSources) return;
 
     let cancelled = false;
 
     async function doEnrich() {
       if (!event || !topicId) return;
 
-      // Step 1: Enrich (Wikipedia + sources) if not already done
+      const hadDiverseSources = event.sources?.some(
+        (s) => s.url && !/wikipedia\.org/i.test(s.url)
+      );
+
+      // Step 1: Enrich (image + diverse sources)
       let enriched = event;
-      if (!event.enriched) {
+      if (!event.enriched || !event.wikipediaImageUrl || !hadDiverseSources) {
         enriched = await enrichEvent(topicId, event);
         if (cancelled) return;
-        setEvent(enriched);
+        setEvent((prev) => ({ ...prev, ...enriched } as typeof prev));
       }
 
-      // Step 2: Generate content if not already done
-      if (!enriched.content) {
+      // Step 2: Generate content if not done, or regenerate if sources were upgraded
+      const sourcesUpgraded = !hadDiverseSources && enriched.sources?.some(
+        (s) => s.url && !/wikipedia\.org/i.test(s.url)
+      );
+      if (!enriched.content || sourcesUpgraded) {
         setContentLoading(true);
-        const content = await generateEventContent(topicId, enriched);
-        if (cancelled) return;
-        setEvent({ ...enriched, content });
-        setContentLoading(false);
+        try {
+          const content = await generateEventContent(topicId, enriched, sourcesUpgraded);
+          if (cancelled) return;
+          setEvent((prev) => ({ ...prev, ...enriched, content } as typeof prev));
+        } catch (err) {
+          console.warn("Content generation failed:", err);
+        }
+        if (!cancelled) setContentLoading(false);
       }
     }
 
@@ -58,7 +76,7 @@ export default function EventPage() {
     return () => {
       cancelled = true;
     };
-  }, [event?.id, event?.enriched, event?.content, topicId, firestoreEvent, setEvent]);
+  }, [event?.id, topicId, eventLoading, setEvent]);
 
   if (eventLoading) {
     return (
@@ -86,36 +104,42 @@ export default function EventPage() {
           {branch && <><span>{branch.name}</span><span className="separator">&rsaquo;</span></>}
           <span>{event.title}</span>
         </nav>
-        {event.sources.length > 0 && (
+        {(event.sources?.length ?? 0) > 0 && (
           <span className="source-count">{event.sources.length} sources</span>
         )}
       </header>
 
       <main className="event-main">
-        <div className="event-title-section">
-          {event.importance === "critical" && <span className="importance-star">{"\u2605"}</span>}
-          <h1>{event.title}</h1>
-          <div className="event-meta">
-            <time>{event.date}{event.endDate ? ` \u2013 ${event.endDate}` : ""}</time>
-            {branch && (
-              <span className="branch-badge" style={{ borderColor: branch.color, color: branch.color }}>
-                {branch.name}
-              </span>
-            )}
+        <div className="event-content-col">
+          <div className="event-title-section">
+            {event.importance === "critical" && <span className="importance-star">{"\u2605"}</span>}
+            <h1>{event.title}</h1>
+            <div className="event-meta">
+              <time>{event.date}{event.endDate ? ` \u2013 ${event.endDate}` : ""}</time>
+              {branch && (
+                <span className="branch-badge" style={{ borderColor: branch.color, color: branch.color }}>
+                  {branch.name}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
 
-        <EventImage url={event.wikipediaImageUrl} alt={event.title} images={event.images} />
-        <EventContent
-          content={event.content}
-          summary={event.summary}
-          sources={event.sources}
-          loading={contentLoading}
-        />
-        <RelatedEvents connections={event.connections} allEvents={activeEvents} />
-        <EventSources sources={event.sources} />
-        <ChatGate messages={messages} sending={sending} onSend={send} />
+          <EventImage url={event.wikipediaImageUrl} alt={event.title} images={event.images} />
+          <EventContent
+            content={event.content}
+            summary={event.summary}
+            sources={event.sources || []}
+            loading={contentLoading}
+          />
+          <RelatedEvents connections={event.connections || []} allEvents={activeEvents} />
+          <EventSources sources={event.sources || []} />
+        </div>
+        <div className="event-chat-col">
+          <ChatGate messages={messages} sending={sending} onSend={send} event={event} streamingText={streamingText} streamingSources={streamingSources} />
+        </div>
       </main>
     </div>
   );
 }
+
+
