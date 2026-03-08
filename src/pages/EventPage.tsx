@@ -80,11 +80,14 @@ export default function EventPage() {
   return (
     <div className="event-page">
       <header className="event-header">
-        <Link to={`/topic/${topicId}`} className="back-link">
-          &larr; Back to Timeline
-        </Link>
+        <nav className="breadcrumb">
+          <Link to={`/topic/${topicId}`}>Timeline</Link>
+          <span className="separator">&rsaquo;</span>
+          {branch && <><span>{branch.name}</span><span className="separator">&rsaquo;</span></>}
+          <span>{event.title}</span>
+        </nav>
         {event.sources.length > 0 && (
-          <span className="source-count">Sources: {event.sources.length}</span>
+          <span className="source-count">{event.sources.length} sources</span>
         )}
       </header>
 
@@ -102,7 +105,7 @@ export default function EventPage() {
           </div>
         </div>
 
-        <EventImage url={event.wikipediaImageUrl} alt={event.title} />
+        <EventImage url={event.wikipediaImageUrl} alt={event.title} images={event.images} />
         <EventContent
           content={event.content}
           summary={event.summary}
