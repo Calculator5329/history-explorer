@@ -71,11 +71,19 @@ async function preseed() {
 
   try {
     await (proxy.firestore as any).get("topics/ww2");
-    console.log("Topic already exists, updating...");
-    await (proxy.firestore as any).update("topics/ww2", topicData);
+    console.log("Topic already exists, patching...");
+    await (proxy.firestore as any).patch("topics/ww2", topicData);
   } catch {
     console.log("Creating new topic...");
-    await (proxy.firestore as any).create("topics", { ...topicData, id: "ww2" });
+    // Use the Firestore REST-style create — set doc at specific path
+    try {
+      await (proxy.firestore as any).create("topics", topicData);
+      console.log("Created topic (auto-ID). Note: You may need to rename it to 'ww2'.");
+    } catch (createErr) {
+      console.error("Failed to create topic:", createErr);
+      console.log("Attempting to write directly...");
+      await (proxy.firestore as any).update("topics/ww2", topicData);
+    }
   }
 
   // Step 2: Generate events via LLM
