@@ -4,6 +4,8 @@ import EventImage from "../components/EventDetail/EventImage.tsx";
 import EventContent from "../components/EventDetail/EventContent.tsx";
 import EventSources from "../components/EventDetail/EventSources.tsx";
 import RelatedEvents from "../components/EventDetail/RelatedEvents.tsx";
+import ChatPanel from "../components/Chat/ChatPanel.tsx";
+import { useChat } from "../hooks/useChat.ts";
 import { useEvent } from "../hooks/useEvent.ts";
 import { useTimeline } from "../hooks/useTimeline.ts";
 import { enrichEvent, generateEventContent } from "../services/event-enricher.ts";
@@ -21,6 +23,8 @@ export default function EventPage() {
   const activeTopic = topic || sampleTopic;
   const activeEvents = allEvents.length > 0 ? allEvents : sampleEvents;
   const branch = activeTopic.branches.find((b) => b.id === event?.branch);
+
+  const { messages, sending, send } = useChat(topicId, event || null);
 
   // Trigger enrichment on mount if needed
   useEffect(() => {
@@ -107,6 +111,7 @@ export default function EventPage() {
         />
         <RelatedEvents connections={event.connections} allEvents={activeEvents} />
         <EventSources sources={event.sources} />
+        <ChatPanel messages={messages} sending={sending} onSend={send} />
       </main>
     </div>
   );
