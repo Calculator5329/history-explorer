@@ -172,7 +172,7 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
   const existingTitles = (existingEvents || []).map(e => e.title);
   const systemPrompt = buildSystemPrompt(existingTitles);
 
-  const stream = await withRetry(() =>
+  const stream: ReadableStream = await withRetry(() =>
     (proxy.ai as any).chatStream({
       provider: "anthropic",
       model: "claude-sonnet-4-5-20250514",
@@ -329,7 +329,7 @@ ${event.content ? `Detail: ${event.content}` : ""}${sourceContext}`;
   const existingTitles = (existingEvents || []).map(e => e.title);
   const systemPrompt = buildSystemPrompt(existingTitles);
 
-  const response = await withRetry(() =>
+  const response: any = await withRetry(() =>
     (proxy.ai as any).chat({
       provider: "anthropic",
       model: "claude-sonnet-4-5-20250514",
