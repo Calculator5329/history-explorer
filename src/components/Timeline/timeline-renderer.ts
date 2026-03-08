@@ -62,6 +62,18 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
     .scaleExtent([0.5, 10])
     .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
       g.attr("transform", event.transform.toString());
+      const k = event.transform.k;
+
+      // Show/hide events based on zoom level
+      g.selectAll(".event-node").each(function () {
+        const el = d3.select(this);
+        const importance = el.attr("data-importance");
+        if (importance === "minor") {
+          el.style("display", k >= 3 ? "block" : "none");
+        } else if (importance === "standard") {
+          el.style("display", k >= 1.5 ? "block" : "none");
+        }
+      });
     });
   svg.call(zoom);
 
@@ -147,7 +159,13 @@ export function renderTimeline({ container, events, branches, onEventClick }: Re
     const r = NODE_SIZES[event.importance];
     const color = colorMap.get(event.branch) || "#888";
 
-    const node = g.append("g").attr("transform", `translate(${x}, ${y})`).style("cursor", "pointer");
+    const node = g
+      .append("g")
+      .attr("class", "event-node")
+      .attr("data-importance", event.importance)
+      .attr("transform", `translate(${x}, ${y})`)
+      .style("cursor", "pointer")
+      .style("display", event.importance === "minor" || event.importance === "standard" ? "none" : "block");
 
     // Glow for critical events
     if (event.importance === "critical") {

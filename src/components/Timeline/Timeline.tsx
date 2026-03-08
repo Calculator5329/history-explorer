@@ -15,15 +15,28 @@ export default function Timeline({ events, branches, onEventClick }: TimelinePro
   useEffect(() => {
     if (!containerRef.current || events.length === 0) return;
 
-    const result = renderTimeline({
-      container: containerRef.current,
-      events,
-      branches,
-      onEventClick,
-    });
+    function render() {
+      if (!containerRef.current) return;
+      // Clear previous
+      containerRef.current.innerHTML = "";
+      renderTimeline({
+        container: containerRef.current,
+        events,
+        branches,
+        onEventClick,
+      });
+    }
+
+    render();
+
+    const handleResize = () => render();
+    window.addEventListener("resize", handleResize);
 
     return () => {
-      result.svg.remove();
+      window.removeEventListener("resize", handleResize);
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
     };
   }, [events, branches, onEventClick]);
 
